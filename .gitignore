@@ -1,0 +1,5 @@
+erl_crash.dump
+*.couch
+*.beam
+lib/mochiweb
+lib/couch

@@ -1,0 +1,2 @@
+%%% -*-erlang-*-
+[{ech, [{ini, ["PATH-TO-INI"]}]}].
