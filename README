@@ -1,0 +1,3 @@
+couchlib is an Erlang library for embedding CouchDB in an application.
+
+It's a rename of "ech".
