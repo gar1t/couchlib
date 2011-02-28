@@ -1,2 +1,22 @@
 %%% -*-erlang-*-
-[{ech, [{ini, ["PATH-TO-INI"]}]}].
+
+%%%-------------------------------------------------------------------
+%%% couchlib config template
+%%%
+%%% To use, copy file to NAME.config and uncomment and modify values
+%%% as needed. To use, specify '-config PATH/NAME' as option to erl.
+%%%
+%%% To use in dev mode with "make shell", copy to dev.config --
+%%% CONFIG=dev by default.
+%%%-------------------------------------------------------------------
+
+[{couchlib,
+  [
+   %% list of couch INI files - other values in this file
+   %% will override values in the INI files
+   %{ini, ["PATH-TO-INI"]},
+
+   %% directory where databases are stored
+   %{database_dir, "DIR"}
+
+  ]}].

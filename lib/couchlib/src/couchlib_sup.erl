@@ -5,7 +5,7 @@
 -export([start_link/0, start_service/1, stop_service/1]).
 
 % Non-standard start functions.
--export([start_config_wrapper/1]).
+-export([start_config_wrapper/0]).
 -export([start_httpd_wrapper/0]).
 -export([start_query_servers_wrapper/0]).
 
@@ -83,9 +83,8 @@ stop_service(Module) ->
 %%---------------------------------------------------------------------------
 
 init([]) ->
-    Ini = couch_ini(),
     {ok, {{one_for_all, 10, 3600},
-          [{couch_config, {?MODULE, start_config_wrapper, [Ini]},
+          [{couch_config, {?MODULE, start_config_wrapper, []},
             permanent, brutal_kill, worker, [couch_config]},
            {couch_drv, {couch_drv, start_link, []},
             permanent, brutal_kill, worker, [couch_drv]},
@@ -96,31 +95,22 @@ init([]) ->
             permanent, 1000, worker, [couch_server]}]}}.
 
 %%---------------------------------------------------------------------------
-%% @doc Reads the list of ini files from config.
-%%---------------------------------------------------------------------------
-
-couch_ini() ->
-    case application:get_env(couch_ini) of
-        {ok, {ini_files, Files}} -> {ini_files, Files};
-        {ok, {ini_entries, Entries}} -> {ini_entries, Entries};
-        {ok, Other} -> exit({invalid_couch_ini, Other});
-        undefined -> {ini_files, []}
-    end.
-
-%%---------------------------------------------------------------------------
 %% @doc Sets any missing config values to sensible defaults.
 %%
 %% This is a work around for any values that CouchDB assumes to be in config.
 %% --------------------------------------------------------------------------
 
-start_config_wrapper(Ini) ->
-    case Ini of
-        {ini_files, IniFiles} ->
+start_config_wrapper() ->
+    % Start config process using an ini files in config.
+    case application:get_env(ini) of
+        {ok, IniFiles} ->
             {ok, Pid} = couch_config:start_link(IniFiles);
-        {ini_entries, Entries} ->
-            {ok, Pid} = couch_config:start_link([]),
-            set_config(Entries)
+        undefined ->
+            {ok, Pid} = couch_config:start_link([])
     end,
+
+    % couchlib supports a handful of commonly used config params.
+    apply_config(application:get_all_env()),
 
     % Modify database_dir = '.' to file:get_cwd() -> this works around a
     % bug in couch_server:all_databases/0 when database_dir is '.'.
@@ -181,7 +171,8 @@ set_missing_config(S, K, Val) ->
         _ -> ok
     end.
 
-set_config([]) -> ok;
-set_config([{Section, Key, Value}|T]) -> 
-    couch_config:set(Section, Key, Value),
-    set_config(T).
+apply_config(Config) -> lists:map(fun apply_setting/1, Config).
+
+apply_setting({database_dir, Dir}) ->
+    couch_config:set("couchdb", "database_dir", Dir);
+apply_setting(_) -> ok.
