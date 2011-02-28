@@ -79,6 +79,7 @@ basic_doc_test() ->
     ?assertEqual([red, green, blue], couchlib_doc:get_attr(tags, Doc2R)),
 
     % TODO: finish basic doc ops: get_attrs, del_attr, delete.
+    % TODO: breakdown a doc: id (must be binary) and attrs
 
     couchlib:delete_db(DbName).
 
@@ -109,10 +110,10 @@ select_docs_test() ->
     % To select from all docs using ID ranges, use couchlib:select/4. Let's add
     % some docs to select.
 
-    D1 = couchlib_doc:new("1", [{name, "doc-1"}]),
-    D2 = couchlib_doc:new("2", [{name, "doc-2"}]),
-    D3 = couchlib_doc:new("3", [{name, "doc-3"}]),
-    D4 = couchlib_doc:new("4", [{name, "doc-4"}]),
+    D1 = couchlib_doc:new(<<"1">>, [{name, "doc-1"}]),
+    D2 = couchlib_doc:new(<<"2">>, [{name, "doc-2"}]),
+    D3 = couchlib_doc:new(<<"3">>, [{name, "doc-3"}]),
+    D4 = couchlib_doc:new(<<"4">>, [{name, "doc-4"}]),
     couchlib:put_many(Db, [D1, D2, D3, D4]),
 
     % We can select every doc in the database ordered by ID as follows:
@@ -126,10 +127,6 @@ select_docs_test() ->
 
     ?assertEqual([<<"1">>, <<"2">>, <<"3">>, <<"4">>],
                  [get_value(id, Row) || Row <- Rows1]),
-
-    % Note that the IDs, which were specified as strings, are now
-    % binaries. CouchDB stores keys strictly as binaries - the string IDs were
-    % implicitly converted when the documents were added.
 
     % In the case when we haven't specified a view (i.e. we're selecting
     % documents from the database directly), the keys are the document ids.
@@ -175,11 +172,8 @@ select_docs_test() ->
     % may be undefined, indicating that the range is unbounded for that
     % side. Let's first find documents that include "2" and "3".
 
-    {4, 1, Rows6} = couchlib:select(Db, "2", "3", []),
+    {4, 1, Rows6} = couchlib:select(Db, <<"2">>, <<"3">>, []),
     ?assertEqual([<<"2">>, <<"3">>], [get_value(id, Row) || Row <- Rows6]),
-
-    % Note again that strings are implicitly converted to binaries. We could
-    % have used binaries as the start and end IDs as well.
 
     {4, 1, Rows6} = couchlib:select(Db, <<"2">>, <<"3">>, []),
     ?assertEqual([<<"2">>, <<"3">>], [get_value(id, Row) || Row <- Rows6]),
@@ -187,24 +181,24 @@ select_docs_test() ->
     % By default, ID selection is inclusive of the end ID. We can exlucde the
     % end using exclude_end.
 
-    {4, 1, Rows7} = couchlib:select(Db, "2", "3", [exclude_end]),
+    {4, 1, Rows7} = couchlib:select(Db, <<"2">>, <<"3">>, [exclude_end]),
     ?assertEqual([<<"2">>], [get_value(id, Row) || Row <- Rows7]),
 
     % Here are some unbounded selects.
 
-    {4, 2, Rows8} = couchlib:select(Db, "3", undefined, []),
+    {4, 2, Rows8} = couchlib:select(Db, <<"3">>, undefined, []),
     ?assertEqual([<<"3">>, <<"4">>], [get_value(id, Row) || Row <- Rows8]),
 
-    {4, 0, Rows9} = couchlib:select(Db, undefined, "2", []),
+    {4, 0, Rows9} = couchlib:select(Db, undefined, <<"2">>, []),
     ?assertEqual([<<"1">>, <<"2">>], [get_value(id, Row) || Row <- Rows9]),
 
     % Take care when specifying reverse - the start and end IDs must be
     % reversed as well.
 
-    {4, 2, Rows10} = couchlib:select(Db, "2", "1", [reverse]),
+    {4, 2, Rows10} = couchlib:select(Db, <<"2">>, <<"1">>, [reverse]),
     ?assertEqual([<<"2">>, <<"1">>], [get_value(id, Row) || Row <- Rows10]),
 
-    {4, 2, Rows11} = couchlib:select(Db, "2", undefined, [reverse]),
+    {4, 2, Rows11} = couchlib:select(Db, <<"2">>, undefined, [reverse]),
     ?assertEqual([<<"2">>, <<"1">>], [get_value(id, Row) || Row <- Rows11]),
 
     % TODO - test stale
@@ -223,20 +217,20 @@ basic_view_test() ->
     % documents to index.
 
     D1 = couchlib_doc:new(
-           "biking",
+           <<"biking">>,
            [{"_rev", "AE19EBC7654"},
             {"title", "Biking"},
             {"body", "My biggest hobby is mountainbiking. The other day..."},
             {"date", "2009/01/30 18:04:11"}]),
     D2 = couchlib_doc:new(
-           "bought-a-cat",
+           <<"bought-a-cat">>,
            [{"_rev", "4A3BBEE711"},
             {"title", "Bought a Cat"},
             {"body", "I went to the the pet store earlier and brought home "
              "a little kitty..."},
             {"date", "2009/02/17 21:13:39"}]),
     D3 = couchlib_doc:new(
-           "hello-world",
+           <<"hello-world">>,
            [{"_rev", "43FBA4E7AB"},
             {"title", "Hello World"},
             {"body", "Well hello and welcome to my new blog..."},
@@ -280,7 +274,7 @@ basic_view_test() ->
     % To be used as views, the binary strings below are required (as opposed to
     % lists).
 
-    DDoc1 = couchlib_doc:new("_design/str",
+    DDoc1 = couchlib_doc:new(<<"_design/str">>,
                              [{<<"language">>, <<"couchlib">>},
                               {<<"views">>, [{<<"by_date">>,
                                               [{<<"map">>, MapStr}]}]}]),
@@ -317,7 +311,7 @@ basic_view_test() ->
                      [{get_value("date", Doc), get_value("title", Doc)}]
              end,
     MapFunBin = term_to_binary(MapFun),
-    DDoc2 = couchlib_doc:new("_design/fun",
+    DDoc2 = couchlib_doc:new(<<"_design/fun">>,
                              [{<<"language">>, <<"couchlib">>},
                               {<<"views">>, [{<<"by_date">>,
                                               [{<<"map">>, MapFunBin}]}]}]),
@@ -336,7 +330,7 @@ basic_view_test() ->
     % that the term must be terminated with a period.
 
     MF = <<"{couchlib_tests, map_date_title}.">>,
-    DDoc3 = couchlib_doc:new("_design/mf",
+    DDoc3 = couchlib_doc:new(<<"_design/mf">>,
                              [{<<"language">>, <<"couchlib">>},
                               {<<"views">>, [{<<"by_date">>,
                                               [{<<"map">>, MF}]}]}]),
@@ -353,7 +347,7 @@ basic_view_test() ->
     % [Doc] list when calling the function.
 
     MFA = <<"{couchlib_tests, map_date_title, [myarg]}.">>,
-    DDoc4 = couchlib_doc:new("_design/mfa",
+    DDoc4 = couchlib_doc:new(<<"_design/mfa">>,
                              [{<<"language">>, <<"couchlib">>},
                               {<<"views">>, [{<<"by_date">>,
                                               [{<<"map">>, MFA}]}]}]),
@@ -389,10 +383,10 @@ view_support_test() ->
     %
     % Let's add a couple documents to map.
 
-    couchlib:put(Db, couchlib_doc:new("biking", 
+    couchlib:put(Db, couchlib_doc:new(<<"biking">>, 
                                       [{"title", "Biking"},
                                        {"date", "2009/01/30"}])),
-    couchlib:put(Db, couchlib_doc:new("hello", 
+    couchlib:put(Db, couchlib_doc:new(<<"hello">>, 
                                       [{"title", "Hello World"},
                                        {"date", "2009/01/15"}])),
 
@@ -439,15 +433,15 @@ term_store_test() ->
     % Let's create a couple documents that have non-standard document bodies
     % (i.e. are not strictly name/value fields).
 
-    couchlib:put(Db, couchlib_term:new("jane", {user, "jane", admin})),
-    couchlib:put(Db, couchlib_term:new("adam", {user, "adam", user})),
+    couchlib:put(Db, couchlib_term:new(<<"jane">>, {user, "jane", admin})),
+    couchlib:put(Db, couchlib_term:new(<<"adam">>, {user, "adam", user})),
 
     % While these documents can't be viewed in Futon, we can read them.
 
-    {ok, Jane} = couchlib:get(Db, "jane"),
+    {ok, Jane} = couchlib:get(Db, <<"jane">>),
     ?assertEqual({user, "jane", admin}, couchlib_term:term(Jane)),
 
-    {ok, Adam} = couchlib:get(Db, "adam"),
+    {ok, Adam} = couchlib:get(Db, <<"adam">>),
     ?assertEqual({user, "adam", user}, couchlib_term:term(Adam)),
 
     % Let's create a couple views for these documents: one that indexes by name
@@ -484,7 +478,7 @@ composite_id_pattern_test() ->
 
     % Here's a simple blog post.
 
-    P = couchlib_doc:new("blog-1/post-1",
+    P = couchlib_doc:new(<<"blog-1/post-1">>,
                          [{time, "12:34"},
                           {by, "Frank"},
                           {text, "CouchDB is fun!"}]),
@@ -492,13 +486,13 @@ composite_id_pattern_test() ->
 
     % Here are some comments.
 
-    C1 = couchlib_doc:new("blog-1/post-1/comment-1",
+    C1 = couchlib_doc:new(<<"blog-1/post-1/comment-1">>,
                           [{time, "12:35"},
                            {by, "Mary"},
                            {text, "And bouncy!"}]),
     couchlib:put(Db, C1),
 
-    C2 = couchlib_doc:new("blog-1/post-1/comment-2",
+    C2 = couchlib_doc:new(<<"blog-1/post-1/comment-2">>,
                           [{time, "12:45"},
                            {by, "Bob"},
                            {text, "Bouncy?"}]),
@@ -507,7 +501,7 @@ composite_id_pattern_test() ->
     % We can retrieve all of the documents associated with a blog post using
     % the "blog-1/" prefix.
 
-    {_, _, Rows} = couchlib:select(Db, "blog-1/", []),
+    {_, _, Rows} = couchlib:select(Db, <<"blog-1/">>, []),
     ?assertEqual([<<"blog-1/post-1">>,
                   <<"blog-1/post-1/comment-1">>,
                   <<"blog-1/post-1/comment-2">>],
@@ -533,24 +527,24 @@ composite_key_test() ->
     % attribute references to related documents. We'll also use a 'type'
     % attribute to distinguish one document type from another.
 
-    B = couchlib_doc:new("899",
+    B = couchlib_doc:new(<<"899">>,
                          [{type, blog},
                           {name, "My Blog"},
                           {by, "Frank"}]),
-    P = couchlib_doc:new("341",
+    P = couchlib_doc:new(<<"341">>,
                          [{type, post},
                           {blog, "899"},
                           {time, "12:34"},
                           {by, "Frank"},
                           {text, "CouchDB is fun!"}]),
-    C1 = couchlib_doc:new("154",
+    C1 = couchlib_doc:new(<<"154">>,
                           [{type, comment},
                            {blog, "899"},
                            {post, "341"},
                            {time, "12:35"},
                            {by, "Mary"},
                            {text, "And bouncy!"}]),
-    C2 = couchlib_doc:new("022",
+    C2 = couchlib_doc:new(<<"022">>,
                           [{type, comment},
                            {blog, "899"},
                            {post, "341"},
@@ -562,9 +556,9 @@ composite_key_test() ->
 
     % Let's also add some other blogs.
 
-    couchlib:put(Db, couchlib_doc:new("102", [{type, blog}])),
-    couchlib:put(Db, couchlib_doc:new("898", [{type, blog}])),
-    couchlib:put(Db, couchlib_doc:new("900", [{type, blog}])),
+    couchlib:put(Db, couchlib_doc:new(<<"102">>, [{type, blog}])),
+    couchlib:put(Db, couchlib_doc:new(<<"898">>, [{type, blog}])),
+    couchlib:put(Db, couchlib_doc:new(<<"900">>, [{type, blog}])),
 
     % Getting all of the documents...
 
@@ -599,19 +593,16 @@ composite_key_test() ->
         end,
     couchlib:put(Db, couchlib_design:new("blog", [{view, {"list", Map}}])),
 
-    % We can use to select documents at different levels. To get all of the
-    % documents associated with blog ID "899", including posts and comments,
-    % we'd use a select like this.
-
-    % TODO - We should be able to use a single key and the "starts with"
-    % behavior should just work. Alas, not so.
+    % We can use this to select documents at different levels. To get all
+    % of the documents associated with blog ID "899", including posts and
+    % comments, we'd use a select like this.
 
     {_, _, [R1]} = couchlib:select({Db, "blog", "list"}, ["899"], []),
     ["899"] = get_value(key, R1),
 
     % TODO - It looks like there's a bug here. The result includes {key,
-    % ["900"]}, which is an exact match of the end key, despite the exclude_end
-    % option.
+    % ["900"]}, which is an exact match of the end key, despite the
+    % exclude_end option.
 
     {_, _, R2} = couchlib:select({Db, "blog", "list"}, ["899"], ["900"],
                                  [exclude_end]),
@@ -709,14 +700,17 @@ web_source_test() ->
     %
     % Here are some "raw" web pages.
 
-    P1 = couchlib_doc:new("doc1", [{src, "/foo/bar1"},
-                                   {body, "title: bar 1\nscore: 10"},
-                                   {type, "foo"}]),
-    P2 = couchlib_doc:new("doc2", [{src, "/foo/bar2"},
-                                   {body, "title: bar 2\nscore: 4"}]),
-    P3 = couchlib_doc:new("doc3", [{src, "/baz/bar3"},
-                                   {body, "title: bar 3"},
-                                   {type, "baz"}]),
+    P1 = couchlib_doc:new(<<"doc1">>, 
+                          [{src, "/foo/bar1"},
+                           {body, "title: bar 1\nscore: 10"},
+                           {type, "foo"}]),
+    P2 = couchlib_doc:new(<<"doc2">>,
+                          [{src, "/foo/bar2"},
+                           {body, "title: bar 2\nscore: 4"}]),
+    P3 = couchlib_doc:new(<<"doc3">>,
+                          [{src, "/baz/bar3"},
+                           {body, "title: bar 3"},
+                           {type, "baz"}]),
     couchlib:put_many(Db, [P1, P2, P3]),
 
     % The views will all be a part of an "indexes" design doc.
@@ -743,9 +737,10 @@ web_source_test() ->
                          {match, [Title]} -> [Title]
                      end
              end,
-    Indexes = couchlib_design:new("indexes", [{view, {"type", TypeF}},
-                                              {view, {"score", ScoreF}},
-                                              {view, {"title", TitleF}}]),
+    Indexes = couchlib_design:new("indexes", 
+                                  [{view, {"type", TypeF}},
+                                   {view, {"score", ScoreF}},
+                                   {view, {"title", TitleF}}]),
 
     couchlib:put(Db, Indexes),
 
@@ -771,6 +766,8 @@ web_source_test() ->
     couchlib:delete_db(DbName).
 
 basic_map_reduce_test() ->
+
+    %% TODO: Finish this
 
     couchlib_views:start(),
     DbName = random_dbname(),

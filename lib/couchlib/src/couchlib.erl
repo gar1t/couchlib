@@ -44,9 +44,9 @@ open(Name) ->
 
 open(Name, Options0) ->
     Options = maybe_add_admin_role(Options0),
-    case couch_db:open(to_bin(Name), Options) of
+    case couch_db:open(db_name(Name), Options) of
         {not_found, no_db_file} ->
-            couch_server:create(to_bin(Name), Options);
+            couch_server:create(db_name(Name), Options);
         Other -> Other
     end.
 
@@ -69,7 +69,7 @@ delete_db(Name) ->
     delete_db(Name, []).
 
 delete_db(Name, Options) ->
-    couch_server:delete(to_bin(Name), Options).
+    couch_server:delete(db_name(Name), Options).
 
 %% ---------------------------------------------------------------------------
 %% @doc Returns info about the specified database.
@@ -82,7 +82,7 @@ info(#db{}=Db0) ->
     {ok, Info} = couch_db:get_db_info(Db),
     [info_item(I) || I <- Info];
 info(Name) when is_list(Name) ->
-    case couch_db:open(to_bin(Name), []) of
+    case couch_db:open(db_name(Name), []) of
         {not_found, no_db_file} -> undefined;
         {ok, Db} -> 
             try 
@@ -159,12 +159,12 @@ put_many(#db{}=Db0, Docs) ->
 %% TODO: more here
 %% ---------------------------------------------------------------------------
 
-get(Db, Id) ->
+get(Db, Id) when is_binary(Id) ->
     get(Db, Id, []).
 
-get(#db{}=Db0, Id, Options) ->
+get(#db{}=Db0, Id, Options) when is_binary(Id) ->
     Db = reopen(Db0),
-    case couch_db:open_doc(Db, to_bin(Id), Options) of
+    case couch_db:open_doc(Db, Id, Options) of
         {ok, Doc} -> {ok, Doc};
         {not_found, missing} -> not_found;
         Err -> Err
@@ -177,9 +177,9 @@ get(#db{}=Db0, Id, Options) ->
 delete(#db{}=Db0, #doc{}=Doc) ->
     Db = reopen(Db0),
     delete_doc(Db, Doc);
-delete(#db{}=Db0, Id) ->
+delete(#db{}=Db0, Id) when is_binary(Id) ->
     Db = reopen(Db0),
-    case couch_db:open_doc(Db, to_bin(Id), []) of
+    case couch_db:open_doc(Db, Id, []) of
         {ok, Doc} ->
             delete_doc(Db, Doc);
         Err -> Err
@@ -198,19 +198,18 @@ select(Source, Options) ->
     select(Source, undefined, undefined, Options).
 
 %% ---------------------------------------------------------------------------
-%% @doc Selects all documents or rows that start with a specified key of
-%% ID. See select/4 for more information.
+%% @doc Selects all documents or rows that start with a specified ID or key.
+%% Supported keys are binaries or lists of key parts (binary, atom, number).
 %%
 %% exlucde_end is ignored if specified in Options.
 %% ---------------------------------------------------------------------------
 
-select(Source, KeyOrId, Options) ->
+select(Source, KeyOrId, Options) when is_binary(KeyOrId) orelse 
+                                      is_list(KeyOrId) ->
     % Add 255 char to end of KeyOrId to extend the range to "starts with".
-    % TODO - This doesn't work with composite keys (I believe it's the same
-    % behavior using the couch HTTP interface).
     End = case KeyOrId of
-              B when is_binary(B) -> <<B, 255>>;
-              L when is_list(L) -> L ++ [255]
+              V when is_binary(V) -> <<V/binary, 255>>;
+              V when is_list(V) -> V ++ [255]
           end,
     select(Source, KeyOrId, End, proplists:delete(exclude_end, Options)).
 
@@ -223,8 +222,9 @@ select(Source, KeyOrId, Options) ->
 %%   Db              = db()
 %%   Design          = string()
 %%   View            = string()
-%%   Start           = binary() | string() | undefined
-%%   End             = binary() | string() | undefined
+%%   Start           = key() | [key()]
+%%   End             = key() | [key()]
+%%   key()           = undefined | binary() | number() | atom()
 %%   Options         = options()
 %%   options()       = [option()]
 %%   option()        = {limit, int()}
@@ -241,7 +241,7 @@ select(Source, KeyOrId, Options) ->
 %% TODO: how do you denote an optional property in a proplist (doc above)
 %% ---------------------------------------------------------------------------
 
-select(#db{}=Db0, StartId0, EndId0, Options) ->
+select(#db{}=Db0, StartId0, EndId0, Options)  ->
     Db = reopen(Db0),
     BaseArgs = view_query_base_args(Options),
     #view_query_args{direction=Dir,
@@ -262,14 +262,16 @@ select(#db{}=Db0, StartId0, EndId0, Options) ->
         [] -> {DocCount, DocCount, []}
     end;
 
-select({#db{}=Db0, Design, View}, StartKey, EndKey, Options) ->
+select({#db{}=Db0, Design, View}, StartKey, EndKey, Options) 
+  when is_list(Design), is_list(View) ->
     Db = reopen(Db0),
     BaseArgs = view_query_base_args(Options),
     #view_query_args{stale=Stale,
                      limit=Limit,
                      skip=Skip} = BaseArgs,
     Args = BaseArgs#view_query_args{start_key=StartKey, end_key=EndKey},
-    try couch_view:get_map_view(Db, design_id(Design), to_bin(View), Stale) of
+    try couch_view:get_map_view(Db, design_id(Design), 
+                                list_to_binary(View), Stale) of
         {ok, Map, _} ->
             {ok, RowCount} = couch_view:get_row_count(Map),
             case couch_view:fold(Map, fold_view_acc_fun(Db, RowCount, Args),
@@ -310,7 +312,7 @@ last(Db) ->
 %% specified doc is the last doc.
 %% ---------------------------------------------------------------------------
 
-next(Db, Id) ->
+next(Db, Id) when is_binary(Id) ->
     case select(Db, Id, undefined, [{skip, 1 }, {limit, 1}]) of
         {_, _, []} -> not_found;
         {_, _, [[{id, NextId}, _Key, _Val]]} -> NextId
@@ -321,7 +323,7 @@ next(Db, Id) ->
 %% specified doc is the first doc.
 %% ---------------------------------------------------------------------------
 
-prev(Db, Id) ->
+prev(Db, Id) when is_binary(Id) ->
     case select(Db, Id, undefined, [{skip, 1 }, {limit, 1}, reverse]) of
         {_, _, []} -> not_found;
         {_, _, [[{id, NextId}, _Key, _Val]]} -> NextId
@@ -343,12 +345,11 @@ reopen(#db{name=Name, user_ctx=Ctx}) ->
     Db#db{user_ctx=Ctx}.
 
 %% ---------------------------------------------------------------------------
-%% @doc Returns a binary for a list or a binary. Used to ensure that various
-%% couch values are binaries.
+%% @doc Ensures db names come back as binary (required by couch).
 %% ---------------------------------------------------------------------------
 
-to_bin(B) when is_binary(B) -> B;
-to_bin(L) when is_list(L) -> list_to_binary(L).
+db_name(Val) when is_binary(Val) -> Val;
+db_name(Val) when is_list(Val) -> list_to_binary(Val).
 
 %% ---------------------------------------------------------------------------
 %% @doc Converts a proplist of options to a base view_query_args record. Used
@@ -376,8 +377,8 @@ view_query_base_args(Options) ->
 %% @doc Returns a design doc "id" for the give name.
 %% ---------------------------------------------------------------------------
 
-design_id(Name) ->
-    NameBin = to_bin(Name),
+design_id(Name) when is_list(Name) ->
+    NameBin = list_to_binary(Name),
     <<"_design/", NameBin/binary>>.
 
 %% ---------------------------------------------------------------------------
@@ -386,7 +387,7 @@ design_id(Name) ->
 %% ---------------------------------------------------------------------------
 
 view_start(undefined, Dir) -> unbound_start(Dir);
-view_start(Id, _) -> to_bin(Id).
+view_start(Id, _) when is_binary(Id) -> Id.
 
 %% ---------------------------------------------------------------------------
 %% @doc Returns a binary value that is outside the range for Dir.
@@ -400,7 +401,7 @@ unbound_start(rev) -> <<255>>.
 %% ---------------------------------------------------------------------------
 
 view_end(undefined, Dir) -> unbound_end(Dir);
-view_end(Id, _) -> to_bin(Id).
+view_end(Id, _) when is_binary(Id) -> Id.
 
 %% ---------------------------------------------------------------------------
 %% @doc Same for unbound_start/1, but for the end value.

@@ -34,13 +34,12 @@ new() -> new(couch_uuids:random(), []).
 new(Attrs) -> new(couch_uuids:random(), Attrs).
 
 %%---------------------------------------------------------------------------
-%% @doc Creates a document with the specified Id and Attrs. Id must be a binary
-%% or a string. String Ids are converted to binary.
+%% @doc Creates a document with the specified Id and Attrs. Id must be a
+%% binary.
 %% ---------------------------------------------------------------------------
 
-new(Id, Attrs) -> 
-    #doc{id=to_bin(Id), 
-         body=wrap_couch_obj(Attrs)}.
+new(Id, Attrs) when is_binary(Id) ->
+    #doc{id=Id, body=wrap_couch_obj(Attrs)}.
 
 %%---------------------------------------------------------------------------
 %% @doc Returns the document's Id.
@@ -88,7 +87,7 @@ set_attr(Name, Value, #doc{body={Attrs}}=Doc) ->
 
 set_attrs([], Doc) -> Doc;
 set_attrs([{Name, Value}|T], Doc) ->
-    set_attrs(T, set_attr(Name, Value, Doc)).
+set_attrs(T, set_attr(Name, Value, Doc)).
 
 %%---------------------------------------------------------------------------
 %% @doc Replaces all of the document's attributes.
@@ -138,11 +137,12 @@ is_deleted(#doc{deleted=D}) -> D.
 
 strip_couch_obj({Obj}) ->
     strip_couch_obj(Obj);
-strip_couch_obj({N, V}) -> 
+strip_couch_obj({N, V}) ->
     {strip_couch_obj(N), strip_couch_obj(V)};
-strip_couch_obj([H|T]) when not is_integer(H) -> 
+strip_couch_obj([H|T]) when not is_integer(H) ->
     [strip_couch_obj(H)|strip_couch_obj(T)];
-strip_couch_obj(Other) -> Other.
+strip_couch_obj(Other) ->
+    Other.
 
 %% ---------------------------------------------------------------------------
 %% @doc Adds wrapping tuple to "objects" - i.e. property lists. E.g. [{foo,
@@ -151,21 +151,15 @@ strip_couch_obj(Other) -> Other.
 %% This is exported but is intended as an internal function.
 %% ---------------------------------------------------------------------------
 
-wrap_couch_obj([]) -> {[]};
+wrap_couch_obj([]) ->
+    {[]};
 wrap_couch_obj([{_, _}|_]=Obj) ->
     {[wrap_couch_obj(P) || P <- Obj]};
 wrap_couch_obj({N, V}) ->
     {wrap_couch_obj(N), wrap_couch_obj(V)};
-wrap_couch_obj(Obj) -> Obj.
+wrap_couch_obj(Obj) ->
+    Obj.
 
 %% ===========================================================================
 %% Private functions
 %% ===========================================================================
-
-%% ---------------------------------------------------------------------------
-%% @doc Converts lists to bin and passes bin through.
-%% ---------------------------------------------------------------------------
-
-to_bin(B) when is_binary(B) -> B;
-to_bin(L) when is_list(L) -> list_to_binary(L).
-

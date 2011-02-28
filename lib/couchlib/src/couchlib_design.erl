@@ -15,10 +15,10 @@
 %% @doc Creates a new design document.
 %% ----------------------------------------------------------------------------
 
-new(DocName, Options) ->
-    couchlib_doc:new("_design/" ++ DocName,
-                [{<<"language">>, ?LANGUAGE},
-                 {<<"views">>, views(Options, [])}]).
+new(DocName, Options) when is_list(DocName) ->
+    couchlib_doc:new(list_to_binary("_design/" ++ DocName),
+                     [{<<"language">>, ?LANGUAGE},
+                      {<<"views">>, views(Options, [])}]).
 
 views([], Acc) -> Acc;
 views([{view, {Name, MapFun}}|T], Acc) ->
