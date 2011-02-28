@@ -177,4 +177,9 @@ apply_config(Config) -> lists:map(fun apply_setting/1, Config).
 
 apply_setting({database_dir, Dir}) ->
     couch_config:set("couchdb", "database_dir", Dir);
+apply_setting({delayed_commits, Flag}) ->
+    couch_config:set("couchdb", "delayed_commits", boolean_to_string(Flag));
 apply_setting(_) -> ok.
+
+boolean_to_string(true) -> "true";
+boolean_to_string(false) -> "false".
