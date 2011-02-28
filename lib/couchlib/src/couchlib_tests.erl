@@ -26,8 +26,9 @@ test() ->
              fun composite_id_pattern_test/0,
              fun composite_key_test/0,
              fun fruit_price_test/0,
-             fun web_source_test/0],
-             % TODO: fun basic_map_reduce_test/0],
+             fun web_source_test/0
+             % TODO: fun basic_map_reduce_test/0
+    ],
     eunit:test({setup, fun setup/0, Tests}).
 
 setup() ->
@@ -78,8 +79,39 @@ basic_doc_test() ->
     ?assertEqual([tags], couchlib_doc:get_attr_names(Doc2R)),
     ?assertEqual([red, green, blue], couchlib_doc:get_attr(tags, Doc2R)),
 
-    % TODO: finish basic doc ops: get_attrs, del_attr, delete.
-    % TODO: breakdown a doc: id (must be binary) and attrs
+    % We can retrieve the document using its ID.
+    {ok, Doc3} = couchlib:get(Db, Id),
+    ?assertEqual(Id, couchlib_doc:get_id(Doc3)),
+    ?assertEqual(couchlib_doc:get_rev(Doc2R), 
+                 couchlib_doc:get_rev(Doc3)),
+
+    % To modify a document in the database, we can't just add a
+    % new doc with the same ID.
+    Doc4 = couchlib_doc:new(Id, [{tags, [dog, cat, bird]}]),
+    ?assertThrow(conflict, couchlib:put(Db, Doc4)),
+
+    % We have to modify the last revision and update that.
+    Doc5 = couchlib_doc:set_attr(tags, [dog, cat, bird], Doc3),
+    {ok, _} = couchlib:put(Db, Doc5),
+
+    % TODO: more on attr manipulation: get_attrs, del_attr, etc.
+
+    % If we retrieve a document that doesn't exist, we get
+    % {not_found, missing}:
+    ?assertEqual({not_found, missing}, couchlib:get(Db, <<"missing">>)),
+
+    % We can delete the document using delete:
+    {ok, _} = couchlib:delete(Db, Id),
+    %% TODO: what does delete return?
+
+    % If we retrieve a document that was deleted, we get
+    % {not_found, deleted}:
+    ?assertEqual({not_found, deleted}, couchlib:get(Db, Id)),
+
+    % Doc IDs must be binary.
+    ?assertError(undef, couchdb_doc:new("badid", [])),
+    ?assertError(undef, couchdb:get(Db, "badid")),
+    ?assertError(undef, couchdb:delete(Db, "badid")),
 
     couchlib:delete_db(DbName).
 

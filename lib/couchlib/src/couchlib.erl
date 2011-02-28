@@ -164,11 +164,7 @@ get(Db, Id) when is_binary(Id) ->
 
 get(#db{}=Db0, Id, Options) when is_binary(Id) ->
     Db = reopen(Db0),
-    case couch_db:open_doc(Db, Id, Options) of
-        {ok, Doc} -> {ok, Doc};
-        {not_found, missing} -> not_found;
-        Err -> Err
-    end.
+    couch_db:open_doc(Db, Id, Options).
 
 %% ---------------------------------------------------------------------------
 %% @doc Removes Doc from Db.
