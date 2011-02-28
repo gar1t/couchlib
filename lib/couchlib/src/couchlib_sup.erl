@@ -91,6 +91,8 @@ init([]) ->
            {couch_db_update_event, {gen_event, start_link,
                                     [{local, couch_db_update}]},
             permanent, brutal_kill, worker, dynamic},
+           {couch_task_status, {couch_task_status, start_link, []},
+            permanent, brutal_kill, worker, [couch_task_status]},
            {couch_server, {couch_server, sup_start_link, []},
             permanent, 1000, worker, [couch_server]}]}}.
 

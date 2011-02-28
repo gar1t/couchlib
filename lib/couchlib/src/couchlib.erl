@@ -14,7 +14,8 @@
          get/2, get/3,
          delete/2,
          select/2, select/3, select/4,
-         first/1, next/2, last/1, prev/2]).
+         first/1, next/2, last/1, prev/2,
+         start_compact/1]).
 
 -define(SUP, couchlib_sup).
 
@@ -168,6 +169,9 @@ get(#db{}=Db0, Id, Options) when is_binary(Id) ->
 
 %% ---------------------------------------------------------------------------
 %% @doc Removes Doc from Db.
+%%
+%% TODO: Letting delete_doc/2 "result" through -- what is this and how
+%% would someone use it?
 %% ---------------------------------------------------------------------------
 
 delete(#db{}=Db0, #doc{}=Doc) ->
@@ -324,6 +328,9 @@ prev(Db, Id) when is_binary(Id) ->
         {_, _, []} -> not_found;
         {_, _, [[{id, NextId}, _Key, _Val]]} -> NextId
     end.
+
+start_compact(Db) ->
+    couch_db:start_compact(Db).
 
 %% ===========================================================================
 %% Private functions

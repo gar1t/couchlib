@@ -101,8 +101,9 @@ basic_doc_test() ->
     ?assertEqual({not_found, missing}, couchlib:get(Db, <<"missing">>)),
 
     % We can delete the document using delete:
-    {ok, _} = couchlib:delete(Db, Id),
-    %% TODO: what does delete return?
+    {ok, {_Start, _RevId}} = couchlib:delete(Db, Id),
+    %% TODO: couch jargon leaking through here (I believe) - what makes
+    %% the most sense to return for delete? How used?
 
     % If we retrieve a document that was deleted, we get
     % {not_found, deleted}:
